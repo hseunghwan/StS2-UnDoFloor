@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using HarmonyLib;
-using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Map;
@@ -23,8 +22,9 @@ public static class MapRewindUi
     private const string HookedMeta = "undofloor_hooked";
     private const string MarkName = "UnDoFloorMark";
 
-    /// <summary>The brush-stroke ring the game draws around visited nodes; reused, tinted, for nodes without an outline sprite.</summary>
-    private const string RingTexturePath = "res://images/atlases/compressed.sprites/map/map_circle_0.tres";
+    /// <summary>The Mangled Tiara relic art: the only crown-shaped sprite the game ships, worn by boss nodes that have a checkpoint.</summary>
+    private const string CrownTexturePath = "res://images/atlases/relic_atlas.sprites/mangled_tiara.tres";
+    private const float CrownSize = 90f;
     private static readonly Color MarkColor = new Color(0.35f, 0.9f, 1f, 1f);
 
     private static readonly AccessTools.FieldRef<NMapScreen, Dictionary<MapCoord, NMapPoint>> MapPointsField =
@@ -139,16 +139,14 @@ public static class MapRewindUi
             outline.GetParent().AddChild(mark);
             return;
         }
-        // Boss nodes are Spine animations with no outline sprite: draw the game's own visited-node brush ring around
-        // the whole node instead, tinted like the outlines. The Spine art spills well past the node's rect, so the
-        // ring is drawn on top (its interior is transparent, like the game's own visited circle) and sized generously.
-        Texture2D? texture = PreloadManager.Cache.GetTexture2D(RingTexturePath);
+        // Boss nodes are Spine animations with no outline sprite: crown them instead.
+        Texture2D? texture = ResourceLoader.Load<Texture2D>(CrownTexturePath, null, ResourceLoader.CacheMode.Reuse);
         if (texture == null)
         {
-            Log.Warn($"[{UnDoFloorMod.Id}] Ring texture {RingTexturePath} is not available; boss node left unmarked.");
+            Log.Warn($"[{UnDoFloorMod.Id}] Crown texture {CrownTexturePath} is not available; boss node left unmarked.");
             return;
         }
-        TextureRect ring = new TextureRect
+        TextureRect crown = new TextureRect
         {
             Name = MarkName,
             Texture = texture,
@@ -156,12 +154,12 @@ public static class MapRewindUi
             MouseFilter = Control.MouseFilterEnum.Ignore,
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-            ZIndex = 5
+            Size = new Vector2(CrownSize, CrownSize),
+            // Sits on the top scale of the boss art (the art starts a little inside the rect), drawn over it.
+            Position = new Vector2((point.Size.X - CrownSize) * 0.5f, -20f)
+            // No ZIndex: it is absolute within the canvas layer and would float above overlays such as the pause menu.
         };
-        Vector2 size = point.Size * 1.6f;
-        ring.Size = size;
-        ring.Position = (point.Size - size) * 0.5f;
-        point.AddChild(ring);
+        point.AddChild(crown);
     }
 
     private static void OnMapPointInput(NMapPoint point, InputEvent inputEvent)
