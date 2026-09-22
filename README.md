@@ -12,7 +12,7 @@ The current source targets STS2 `0.111.0`. The mod compiles against the game's o
 - **Two restore points per floor:**
   - *Redo this floor* — the moment you entered the room. The room is played again (combat, event, shop, rest site, treasure).
   - *Keep result, re-pick path* — the moment the room finished (combat won / event resolved), before you chose the next node. Available for combat and event rooms, which is where the game itself writes a "finished" save.
-- **Previous acts.** When earlier acts have restore points, `< Previous act` / `Next act >` buttons appear at the top of the map screen. Browse an earlier act's map and click one of its nodes to rewind across acts.
+- **Previous acts.** When earlier acts have restore points, `< Previous act` / `Next act >` buttons appear on the left edge of the map screen. Browse an earlier act's map and click one of its nodes to rewind across acts.
 - **Timelines are kept.** Rewinding never deletes later restore points. After going back and taking a different path, the old path's nodes keep their outline and stay clickable, so you can jump forward into the abandoned timeline again. A node that is saved again simply replaces its old restore point.
 - **Survives quitting.** Restore points are written to disk per run and reloaded when you continue the run. Starting a new run discards the previous run's files.
 - Nodes without a restore point behave exactly as before. On a node that is both a travel choice and a restore point, the dialog adds a *Travel here* button so normal travel is one extra click away.
@@ -67,7 +67,6 @@ src/
 ### Known limitations
 
 - Only floors saved while the mod was installed have restore points; floors played before installing it are not available.
-- While viewing a past act, node jitter and path highlighting are computed for the current act, so the layout can differ slightly from how that act originally looked. The background stays the current act's.
 - The dialog uses a plain engine dialog rather than the game's UI style.
 
 ### Development note
@@ -86,7 +85,7 @@ Written with Claude Code, reviewed and tested by the author. The rewind pipeline
 - **층마다 복원 지점 두 개:**
   - *이 층 다시 하기* — 방에 들어간 순간. 그 방(전투·이벤트·상점·휴식·보물)을 다시 플레이합니다.
   - *결과 유지, 경로 다시 선택* — 방이 끝난 순간(전투 승리 / 이벤트 종료), 다음 노드를 고르기 직전. 게임이 "완료" 세이브를 쓰는 전투·이벤트 방에서만 제공됩니다.
-- **이전 막.** 이전 막에 복원 지점이 있으면 지도 상단에 `<  이전 막` / `다음 막  >` 버튼이 나타납니다. 이전 막 지도를 열어 노드를 클릭하면 막을 넘어 되돌아갑니다.
+- **이전 막.** 이전 막에 복원 지점이 있으면 지도 왼쪽 가장자리에 `<  이전 막` / `다음 막  >` 버튼이 나타납니다. 이전 막 지도를 열어 노드를 클릭하면 막을 넘어 되돌아갑니다.
 - **시간선 유지.** 되돌아가도 이후 층의 복원 지점은 지워지지 않습니다. 되돌아간 뒤 다른 길로 가도 옛 경로 노드는 테두리와 클릭이 유지되어, 버린 시간선으로 다시 앞으로 갈 수 있습니다. 같은 노드가 다시 저장되면 그 노드의 옛 복원 지점만 새 것으로 바뀝니다.
 - **게임을 꺼도 유지.** 복원 지점은 런별로 디스크에 저장되고 이어하기 시 다시 불러옵니다. 새 런을 시작하면 이전 런의 파일은 정리됩니다.
 - 복원 지점이 없는 노드는 기존과 완전히 같게 동작합니다. 다음 층 후보이면서 복원 지점도 있는 노드에서는 다이얼로그에 *여기로 이동* 버튼이 추가되어 한 번 더 클릭하면 평소처럼 이동합니다.
@@ -141,7 +140,6 @@ src/
 ### 알려진 제약
 
 - 모드가 설치된 뒤 저장된 층만 복원 지점이 있습니다. 설치 전에 지나온 층은 되돌아갈 수 없습니다.
-- 과거 막 지도를 볼 때 노드의 미세한 위치 흔들림과 경로 강조가 현재 막 기준으로 계산되어 원래 화면과 약간 다를 수 있습니다. 배경은 현재 막의 것이 유지됩니다.
 - 다이얼로그는 게임 UI 스타일이 아닌 엔진 기본 다이얼로그를 사용합니다.
 
 ### 개발 노트
