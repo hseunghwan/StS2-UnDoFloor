@@ -2,8 +2,9 @@
   "id": "StS2-UnDoFloor",
   "name": "StS2-UnDoFloor",
   "author": "cycle1223",
-  "description": "Go back to an earlier floor of the current run by clicking a visited node on the map.",
+  "description": "Go back to an earlier floor of the current run from the map screen. Keeps abandoned timelines; works across acts.",
   "version": "0.1.0",
+  "min_game_version": "0.111.0",
   "has_pck": false,
   "has_dll": true,
   "affects_gameplay": true

@@ -1,36 +1,44 @@
-<Project Sdk="Godot.NET.Sdk/4.5.1">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
-    <TargetFramework Condition=" '$(GodotTargetPlatform)' == 'android' ">net9.0</TargetFramework>
-    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <LangVersion>13.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>false</ImplicitUsings>
     <AssemblyName>StS2-UnDoFloor</AssemblyName>
     <RootNamespace>StS2UnDoFloor</RootNamespace>
-    <Nullable>enable</Nullable>
-    <LangVersion>13.0</LangVersion>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <!-- Override with `dotnet build -p:Sts2InstallDir=...` or the STS2_INSTALL_DIR environment variable. -->
+    <Sts2InstallDir Condition="'$(Sts2InstallDir)' == '' and '$(STS2_INSTALL_DIR)' != ''">$(STS2_INSTALL_DIR)</Sts2InstallDir>
+    <Sts2InstallDir Condition="'$(Sts2InstallDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2</Sts2InstallDir>
+    <Sts2RuntimeDir>$(Sts2InstallDir)\data_sts2_windows_x86_64</Sts2RuntimeDir>
+    <!-- Copy the built mod into the game's mods folder after every build; disable with -p:CopyToModsFolder=false. -->
+    <CopyToModsFolder Condition="'$(CopyToModsFolder)' == ''">true</CopyToModsFolder>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- The game ships its own 0Harmony.dll; we only compile against the package. -->
-    <PackageReference Include="Lib.Harmony" Version="2.3.3" ExcludeAssets="runtime" />
+    <!-- All three ship with the game; compiling against the same binaries the loader uses avoids version drift. -->
     <Reference Include="sts2">
-      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\sts2.dll</HintPath>
-      <Private>False</Private>
+      <HintPath>$(Sts2RuntimeDir)\sts2.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="GodotSharp">
+      <HintPath>$(Sts2RuntimeDir)\GodotSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(Sts2RuntimeDir)\0Harmony.dll</HintPath>
+      <Private>false</Private>
     </Reference>
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- Reference material only (decompiled game source, the UndoAndRestart mod); never compile it. -->
-    <Compile Remove="sts2_pck\**;Sts2UndoAndRestart\**" />
-    <None Remove="sts2_pck\**;Sts2UndoAndRestart\**" />
-  </ItemGroup>
-
-  <Target Name="CopyToModsFolder" AfterTargets="Build">
+  <Target Name="CopyToModsFolderOnBuild" AfterTargets="Build" Condition="'$(CopyToModsFolder)' == 'true'">
     <PropertyGroup>
-      <ModsFolder>C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\mods\StS2-UnDoFloor</ModsFolder>
+      <ModsFolder>$(Sts2InstallDir)\mods\$(AssemblyName)</ModsFolder>
     </PropertyGroup>
-    <Message Text="Copying mod to $(ModsFolder)" Importance="high" />
-    <!-- The old manifest name must not linger next to the new one, or the loader sees two manifests. -->
+    <MakeDir Directories="$(ModsFolder)" />
+    <!-- An older manifest name must not linger next to the new one, or the loader sees two manifests. -->
     <Delete Files="$(ModsFolder)\mod_manifest.json" />
-    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll;$(MSBuildProjectDirectory)\$(AssemblyName).json" DestinationFolder="$(ModsFolder)" SkipUnchangedFiles="false" />
+    <Copy SourceFiles="$(TargetPath);$(MSBuildProjectDirectory)\$(AssemblyName).json" DestinationFolder="$(ModsFolder)" SkipUnchangedFiles="false" />
+    <Message Text="Copied $(AssemblyName) to $(ModsFolder)" Importance="high" />
   </Target>
 </Project>
