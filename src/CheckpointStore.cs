@@ -55,21 +55,6 @@ internal static class CheckpointStore
         }
     }
 
-    public static void Delete(FloorCheckpoint checkpoint)
-    {
-        try
-        {
-            string path = Path.Combine(RunDir(checkpoint.RunStartTime), checkpoint.FileName);
-            if (File.Exists(path))
-            {
-                File.Delete(path);
-            }
-        }
-        catch (Exception e)
-        {
-            Log.Error($"[{UnDoFloorMod.Id}] Failed to delete checkpoint {checkpoint}:\n{e}");
-        }
-    }
 
     /// <summary>Removes every run folder except the one for <paramref name="keepRunStartTime"/>.</summary>
     public static void PruneOtherRuns(long keepRunStartTime)

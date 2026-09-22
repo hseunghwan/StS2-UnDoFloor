@@ -58,8 +58,6 @@ public static class FloorRewinder
             runManager.MapDrawingsToLoad = save.MapDrawings;
             await game.LoadRun(runState, save.PreFinishedRoom);
 
-            FloorHistory.TruncateAfter(checkpoint);
-
             await game.Transition.FadeIn();
             fadedOut = false;
             await RestoreMapMarker(game, runState);

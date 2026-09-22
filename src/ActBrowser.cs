@@ -61,6 +61,7 @@ public static class ActBrowser
                 if (_screen != null && GodotObject.IsInstanceValid(_screen))
                 {
                     Refresh(_screen);
+                    MapRewindUi.RefreshMarkers(_screen);
                 }
             };
             _subscribed = true;

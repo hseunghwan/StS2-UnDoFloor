@@ -29,6 +29,8 @@
       <ModsFolder>C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\mods\StS2-UnDoFloor</ModsFolder>
     </PropertyGroup>
     <Message Text="Copying mod to $(ModsFolder)" Importance="high" />
-    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll;$(MSBuildProjectDirectory)\mod_manifest.json" DestinationFolder="$(ModsFolder)" SkipUnchangedFiles="false" />
+    <!-- The old manifest name must not linger next to the new one, or the loader sees two manifests. -->
+    <Delete Files="$(ModsFolder)\mod_manifest.json" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll;$(MSBuildProjectDirectory)\$(AssemblyName).json" DestinationFolder="$(ModsFolder)" SkipUnchangedFiles="false" />
   </Target>
 </Project>

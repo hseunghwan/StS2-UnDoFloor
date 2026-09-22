@@ -11,7 +11,9 @@ namespace StS2UnDoFloor;
 
 /// <summary>
 /// Every run save the game has written for the current run, in memory and mirrored to disk by
-/// <see cref="CheckpointStore"/>. The game saves on room entry (RunManager.EnterMapPointInternal) and again when a
+/// <see cref="CheckpointStore"/>. Nothing is dropped on rewind: an abandoned timeline's checkpoints stay so the
+/// player can jump forward into it again; a slot (act, node, kind) is simply overwritten when that node is saved again.
+/// The game saves on room entry (RunManager.EnterMapPointInternal) and again when a
 /// combat is won or an event finishes (the "pre-finished" save), so those two moments become the Entered / Completed
 /// checkpoints of each floor.
 /// </summary>
@@ -28,6 +30,11 @@ public static class FloorHistory
     public static IEnumerable<FloorCheckpoint> ForCoord(int actIndex, MapCoord coord)
     {
         return _checkpoints.Where(c => c.ActIndex == actIndex && c.Coord == coord).OrderBy(c => c.Kind);
+    }
+
+    public static bool HasAny(int actIndex, MapCoord coord)
+    {
+        return _checkpoints.Any(c => c.ActIndex == actIndex && c.Coord == coord);
     }
 
     /// <summary>Act indexes that have at least one checkpoint, ascending.</summary>
@@ -80,22 +87,6 @@ public static class FloorHistory
         Changed?.Invoke();
     }
 
-    /// <summary>After rewinding to <paramref name="target"/>, everything that happened after it is a dead branch.</summary>
-    internal static void TruncateAfter(FloorCheckpoint target)
-    {
-        List<FloorCheckpoint> dead = _checkpoints.Where(c => c.IsAfter(target)).ToList();
-        if (dead.Count == 0)
-        {
-            return;
-        }
-        foreach (FloorCheckpoint checkpoint in dead)
-        {
-            _checkpoints.Remove(checkpoint);
-            CheckpointStore.Delete(checkpoint);
-        }
-        Log.Info($"[{UnDoFloorMod.Id}] Dropped {dead.Count} checkpoints after {target}.");
-        Changed?.Invoke();
-    }
 }
 
 /// <summary>

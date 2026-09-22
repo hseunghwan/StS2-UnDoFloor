@@ -66,20 +66,6 @@ public sealed class FloorCheckpoint
         return ActIndex == other.ActIndex && Coord == other.Coord && Kind == other.Kind;
     }
 
-    /// <summary>True if this checkpoint lies after <paramref name="target"/> on the run's timeline.</summary>
-    public bool IsAfter(FloorCheckpoint target)
-    {
-        if (ActIndex != target.ActIndex)
-        {
-            return ActIndex > target.ActIndex;
-        }
-        if (Coord.row != target.Coord.row)
-        {
-            return Coord.row > target.Coord.row;
-        }
-        // Same floor: Completed comes after Entered.
-        return Kind == CheckpointKind.Completed && target.Kind == CheckpointKind.Entered;
-    }
 
     public SerializableRun LoadSave()
     {
