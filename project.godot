@@ -10,10 +10,10 @@ config_version=5
 
 [application]
 
-config/name="StS2-UnDoRound"
+config/name="StS2-UnDoFloor"
 config/features=PackedStringArray("4.5", "C#", "Forward Plus")
 config/icon="res://icon.svg"
 
 [dotnet]
 
-project/assembly_name="StS2-unround"
+project/assembly_name="StS2-UnDoFloor"

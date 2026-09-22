@@ -1,0 +1,34 @@
+<Project Sdk="Godot.NET.Sdk/4.5.1">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework Condition=" '$(GodotTargetPlatform)' == 'android' ">net9.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <AssemblyName>StS2-UnDoFloor</AssemblyName>
+    <RootNamespace>StS2UnDoFloor</RootNamespace>
+    <Nullable>enable</Nullable>
+    <LangVersion>13.0</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The game ships its own 0Harmony.dll; we only compile against the package. -->
+    <PackageReference Include="Lib.Harmony" Version="2.3.3" ExcludeAssets="runtime" />
+    <Reference Include="sts2">
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\data_sts2_windows_x86_64\sts2.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Reference material only (decompiled game source, the UndoAndRestart mod); never compile it. -->
+    <Compile Remove="sts2_pck\**;Sts2UndoAndRestart\**" />
+    <None Remove="sts2_pck\**;Sts2UndoAndRestart\**" />
+  </ItemGroup>
+
+  <Target Name="CopyToModsFolder" AfterTargets="Build">
+    <PropertyGroup>
+      <ModsFolder>C:\Program Files (x86)\Steam\steamapps\common\Slay the Spire 2\mods\StS2-UnDoFloor</ModsFolder>
+    </PropertyGroup>
+    <Message Text="Copying mod to $(ModsFolder)" Importance="high" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll;$(MSBuildProjectDirectory)\mod_manifest.json" DestinationFolder="$(ModsFolder)" SkipUnchangedFiles="false" />
+  </Target>
+</Project>
