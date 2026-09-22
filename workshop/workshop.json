@@ -1,0 +1,9 @@
+{
+  "title": "UnDoFloor - Go back to an earlier floor",
+  "description": "Go back to an earlier floor of your current run from the map screen.\n\n[h2]How it works[/h2]\nOpen the map and click a node with a sky-blue outline. Each visited floor offers up to two restore points:\n[list]\n[*] [b]Redo this floor[/b] - the moment you entered the room; play it again.\n[*] [b]Keep result, re-pick path[/b] - after the combat or event finished, before you chose the next node.\n[/list]\nUse the [b]Previous act / Next act[/b] buttons on the left edge of the map to browse earlier acts and rewind across acts. Rewinding never deletes later restore points: abandoned timelines stay marked and clickable, so you can jump forward into them again.\n\nRestore points are saved to disk per run and survive quitting the game. Only floors saved after the mod is installed have restore points.\n\n[h2]Notes[/h2]\n[list]\n[*] Singleplayer only.\n[*] Restores go through the game's own save/load path; no live state is patched.\n[*] Text follows the game's language setting (all 16 languages).\n[*] Source and manual downloads: https://github.com/hseunghwan/StS2-UnDoFloor\n[/list]\n\n[h2]한국어[/h2]\n지도 화면에서 현재 런의 이전 층으로 되돌아갑니다. 하늘색 테두리가 있는 노드를 클릭해 [b]방 진입 시점[/b] 또는 [b]방 완료 시점[/b]으로 복원하고, 지도 왼쪽의 이전/다음 막 버튼으로 이전 막까지 되돌아갈 수 있습니다. 되돌아가도 이후 시간선은 유지되며, 복원 지점은 런별로 디스크에 저장됩니다. 싱글플레이 전용.",
+  "visibility": "private",
+  "changeNote": "0.2.0 - first Workshop upload.",
+  "tags": [],
+  "dependencies": [],
+  "contentDescriptors": []
+}

@@ -47,6 +47,14 @@ public static class ActBrowser
     private static readonly System.Reflection.MethodInfo MapBgRefresh =
         AccessTools.Method(typeof(NMapBg), "OnVisibilityChanged");
 
+    // NMapScreen.SetMap frees the old nodes but never clears _secondBossPointNode. Vanilla never notices: acts only
+    // move forward and only the final act has a second boss. Paging from an act that has one back to an act that does
+    // not leaves the field pointing at a freed node, and SetMap then dies on GetPath() before it finishes (no
+    // travelability pass, no background refresh). Clearing the field first is safe: _points.FreeChildren() frees the
+    // node anyway.
+    private static readonly AccessTools.FieldRef<NMapScreen, NBossMapPoint?> SecondBossPointField =
+        AccessTools.FieldRefAccess<NMapScreen, NBossMapPoint?>("_secondBossPointNode");
+
     private static NMapScreen? _screen;
     private static Button? _left;
     private static Button? _right;
@@ -137,19 +145,22 @@ public static class ActBrowser
         }
         int current = runState.CurrentActIndex;
         int viewed = ViewedActIndex ?? current;
-        List<int> acts = FloorHistory.ActsWithCheckpoints().Where(a => a < current).ToList();
+        // Every act that can be shown: the current one plus any act that has a checkpoint. Acts *after* the current
+        // one exist too once the player has rewound across an act boundary (timelines are kept), so paging goes both ways.
+        List<int> acts = FloorHistory.ActsWithCheckpoints().Append(current).Distinct().OrderBy(a => a).ToList();
         _left.Disabled = !acts.Any(a => a < viewed);
-        _right.Disabled = viewed >= current;
+        _right.Disabled = !acts.Any(a => a > viewed);
         // Re-applied on every refresh so a language change while the run is loaded reaches the buttons too.
         _left.Text = ModText.PreviousActButton;
         _right.Text = ModText.NextActButton;
-        _title.Text = ModText.ActHeader(viewed + 1, isPast: viewed != current);
-        bool show = acts.Count > 0 || ViewedActIndex != null;
+        // "(past)" only fits acts behind the current one; a later act reached by rewinding is shown as a plain header.
+        _title.Text = ModText.ActHeader(viewed + 1, isPast: viewed < current);
+        bool show = acts.Count > 1 || ViewedActIndex != null;
         if (screen.GetNodeOrNull(NavName) is Control control)
         {
             control.Visible = show;
         }
-        Log.Info($"[{UnDoFloorMod.Id}] Act nav: current={current + 1} viewed={viewed + 1} pastActs=[{string.Join(",", acts.Select(a => a + 1))}] visible={show}.");
+        Log.Info($"[{UnDoFloorMod.Id}] Act nav: current={current + 1} viewed={viewed + 1} acts=[{string.Join(",", acts.Select(a => a + 1))}] visible={show}.");
     }
 
     private static void Step(NMapScreen screen, int direction)
@@ -229,6 +240,7 @@ public static class ActBrowser
             runState.Map = map;
             visitedList.Clear();
             visitedList.AddRange(visited);
+            SecondBossPointField(screen) = null;
             screen.SetMap(map, runState.Rng.Seed, clearDrawings: false);
             MapBgRefresh.Invoke(MapBgField(screen), null);
         }
@@ -255,6 +267,7 @@ public static class ActBrowser
             return;
         }
         Log.Info($"[{UnDoFloorMod.Id}] Showing current act {runState.CurrentActIndex + 1} map again.");
+        SecondBossPointField(screen) = null;
         screen.SetMap(runState.Map, runState.Rng.Seed, clearDrawings: false);
         MapBgRefresh.Invoke(MapBgField(screen), null);
         if (!screen.IsVisible())

@@ -69,6 +69,18 @@ src/
 - Only floors saved while the mod was installed have restore points; floors played before installing it are not available.
 - The dialog uses a plain engine dialog rather than the game's UI style.
 
+### Publishing to Steam Workshop
+
+Uploads go through MegaCrit's official [sts2-mod-uploader](https://github.com/megacrit/sts2-mod-uploader). The `workshop/` folder is the uploader workspace: `workshop.json` (title, description, visibility, change note), `image.png` (preview, under 1MB) and `content/` (the files that get uploaded, staged by the script). `publish.ps1` builds Release, stages `content/` and runs the uploader:
+
+```powershell
+# ModUploader.exe extracted to C:\workspace\sts2-mod-uploader (or set STS2_MOD_UPLOADER / -UploaderDir)
+.\publish.ps1 -ChangeNote "0.2.0 - first upload"
+.\publish.ps1 -NoUpload      # build and stage only
+```
+
+Steam must be running. The first upload creates the item and writes `workshop/mod_id.txt`; commit it so later runs update the same item. Supported game branches (min/max) are best set on the item's Workshop page.
+
 ### Development note
 
 Written with Claude Code, reviewed and tested by the author. The rewind pipeline follows the game's own save/load path; the snapshot-based [Undo And Restart](https://github.com/yuudong123/Sts2UndoAndRestart) mod was used as a reference for the mod project layout.
@@ -141,6 +153,18 @@ src/
 
 - 모드가 설치된 뒤 저장된 층만 복원 지점이 있습니다. 설치 전에 지나온 층은 되돌아갈 수 없습니다.
 - 다이얼로그는 게임 UI 스타일이 아닌 엔진 기본 다이얼로그를 사용합니다.
+
+### Steam 창작마당 게시
+
+업로드는 MegaCrit 공식 [sts2-mod-uploader](https://github.com/megacrit/sts2-mod-uploader)로 합니다. `workshop/` 폴더가 업로더 작업 공간입니다: `workshop.json`(제목·설명·공개 범위·변경 노트), `image.png`(1MB 미만 미리보기), `content/`(실제 업로드되는 파일, 스크립트가 채움). `publish.ps1`이 Release 빌드 → `content/` 준비 → 업로더 실행을 한 번에 합니다.
+
+```powershell
+# ModUploader.exe를 C:\workspace\sts2-mod-uploader에 풀어둔 경우 (또는 STS2_MOD_UPLOADER / -UploaderDir)
+.\publish.ps1 -ChangeNote "0.2.0 - first upload"
+.\publish.ps1 -NoUpload      # 빌드와 준비만
+```
+
+Steam이 실행 중이어야 합니다. 첫 업로드가 아이템을 만들고 `workshop/mod_id.txt`를 쓰니 커밋해 두면 이후 실행은 같은 아이템을 갱신합니다. 지원 게임 브랜치(최소/최대)는 창작마당 아이템 페이지에서 설정하는 것이 안정적입니다.
 
 ### 개발 노트
 
