@@ -1,5 +1,7 @@
 # UnDoFloor
 
+![Map screen: restore-point nodes outlined in sky blue, the crowned act boss, the act buttons on the left, and the rewind dialog for Act 2 Floor 16](screenshot/screenshot2.png)
+
 ## English
 
 `UnDoFloor` is a Slay the Spire 2 C# mod that lets you go back to an earlier floor of your current run from the map screen.
@@ -71,7 +73,7 @@ src/
 
 ### Publishing to Steam Workshop
 
-Uploads go through MegaCrit's official [sts2-mod-uploader](https://github.com/megacrit/sts2-mod-uploader). The `workshop/` folder is the uploader workspace: `workshop.json` (title, description, visibility, change note), `image.png` (preview, under 1MB) and `content/` (the files that get uploaded, staged by the script). `publish.ps1` builds Release, stages `content/` and runs the uploader:
+Uploads go through MegaCrit's official [sts2-mod-uploader](https://github.com/megacrit/sts2-mod-uploader). The `workshop/` folder is the uploader workspace: `workshop.json` (title, description, visibility, change note), `image.png` (main preview, under 1MB), `previews/` (extra screenshots shown on the Workshop page, each under 1MB; JPEGs downscaled from `screenshot/`) and `content/` (the files that get uploaded, staged by the script). `publish.ps1` builds Release, stages `content/` and runs the uploader:
 
 ```powershell
 # ModUploader.exe extracted to C:\workspace\sts2-mod-uploader (or set STS2_MOD_UPLOADER / -UploaderDir)
@@ -156,7 +158,7 @@ src/
 
 ### Steam 창작마당 게시
 
-업로드는 MegaCrit 공식 [sts2-mod-uploader](https://github.com/megacrit/sts2-mod-uploader)로 합니다. `workshop/` 폴더가 업로더 작업 공간입니다: `workshop.json`(제목·설명·공개 범위·변경 노트), `image.png`(1MB 미만 미리보기), `content/`(실제 업로드되는 파일, 스크립트가 채움). `publish.ps1`이 Release 빌드 → `content/` 준비 → 업로더 실행을 한 번에 합니다.
+업로드는 MegaCrit 공식 [sts2-mod-uploader](https://github.com/megacrit/sts2-mod-uploader)로 합니다. `workshop/` 폴더가 업로더 작업 공간입니다: `workshop.json`(제목·설명·공개 범위·변경 노트), `image.png`(대표 미리보기, 1MB 미만), `previews/`(창작마당 페이지에 함께 표시되는 스크린샷, 각 1MB 미만; `screenshot/` 원본을 축소한 JPEG), `content/`(실제 업로드되는 파일, 스크립트가 채움). `publish.ps1`이 Release 빌드 → `content/` 준비 → 업로더 실행을 한 번에 합니다.
 
 ```powershell
 # ModUploader.exe를 C:\workspace\sts2-mod-uploader에 풀어둔 경우 (또는 STS2_MOD_UPLOADER / -UploaderDir)
