@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Map;
@@ -21,6 +22,9 @@ public static class MapRewindUi
 {
     private const string HookedMeta = "undofloor_hooked";
     private const string MarkName = "UnDoFloorMark";
+
+    /// <summary>The brush-stroke ring the game draws around visited nodes; reused, tinted, for nodes without an outline sprite.</summary>
+    private const string RingTexturePath = "res://images/atlases/compressed.sprites/map/map_circle_0.tres";
     private static readonly Color MarkColor = new Color(0.35f, 0.9f, 1f, 1f);
 
     private static readonly AccessTools.FieldRef<NMapScreen, Dictionary<MapCoord, NMapPoint>> MapPointsField =
@@ -135,16 +139,29 @@ public static class MapRewindUi
             outline.GetParent().AddChild(mark);
             return;
         }
-        ColorRect dot = new ColorRect
+        // Boss nodes are Spine animations with no outline sprite: draw the game's own visited-node brush ring around
+        // the whole node instead, tinted like the outlines. The Spine art spills well past the node's rect, so the
+        // ring is drawn on top (its interior is transparent, like the game's own visited circle) and sized generously.
+        Texture2D? texture = PreloadManager.Cache.GetTexture2D(RingTexturePath);
+        if (texture == null)
+        {
+            Log.Warn($"[{UnDoFloorMod.Id}] Ring texture {RingTexturePath} is not available; boss node left unmarked.");
+            return;
+        }
+        TextureRect ring = new TextureRect
         {
             Name = MarkName,
-            Color = MarkColor,
+            Texture = texture,
+            Modulate = MarkColor,
             MouseFilter = Control.MouseFilterEnum.Ignore,
-            Size = new Vector2(14f, 14f),
-            Position = new Vector2(point.Size.X - 6f, -8f),
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
             ZIndex = 5
         };
-        point.AddChild(dot);
+        Vector2 size = point.Size * 1.6f;
+        ring.Size = size;
+        ring.Position = (point.Size - size) * 0.5f;
+        point.AddChild(ring);
     }
 
     private static void OnMapPointInput(NMapPoint point, InputEvent inputEvent)
@@ -189,24 +206,24 @@ public static class MapRewindUi
         int actNumber = checkpoints[0].ActIndex + 1;
         AcceptDialog dialog = new AcceptDialog
         {
-            Title = $"Act {actNumber} - Floor {floor} - {point.Point.PointType}",
+            Title = ModText.DialogTitle(actNumber, floor, point.Point.PointType),
             DialogText = onCurrentPath
-                ? $"Go back to act {actNumber}, floor {floor}?\nLater floors stay available as another timeline."
-                : $"Jump to act {actNumber}, floor {floor} of an earlier timeline?\nYour current path stays available too.",
+                ? ModText.RewindBody(actNumber, floor)
+                : ModText.JumpBody(actNumber, floor),
             Exclusive = true
         };
         dialog.GetOkButton().Visible = false;
-        dialog.AddCancelButton("Cancel");
+        dialog.AddCancelButton(ModText.Cancel);
         if (point.IsEnabled)
         {
             // The click also meant "go here" in the game; keep that reachable.
-            dialog.AddButton("Travel here", right: true, action: "Travel");
+            dialog.AddButton(ModText.TravelHere, right: true, action: "Travel");
         }
         foreach (FloorCheckpoint checkpoint in checkpoints)
         {
             string label = checkpoint.Kind == CheckpointKind.Entered
-                ? "Redo this floor"
-                : "Keep result, re-pick path";
+                ? ModText.RedoFloor
+                : ModText.KeepResult;
             dialog.AddButton(label, right: true, action: checkpoint.Kind.ToString());
         }
         dialog.CustomAction += action =>

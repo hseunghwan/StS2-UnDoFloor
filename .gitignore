@@ -14,3 +14,4 @@ obj/
 publish/
 artifacts/
 *.zip
+*.uid

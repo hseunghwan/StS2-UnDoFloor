@@ -29,6 +29,24 @@ public static class ActBrowser
     private static readonly System.Reflection.MethodInfo RecalculateTravelability =
         AccessTools.Method(typeof(NMapScreen), "RecalculateTravelability");
 
+    // The map screen reads the act, map and visited coords straight from the RunState while it builds nodes
+    // (boss/ancient art, traveled colour, jitter seed, path ticks). The CurrentActIndex setter has side effects
+    // (it clears visited coords), so the swap goes through the backing fields and is undone right after SetMap.
+    private static readonly AccessTools.FieldRef<RunState, int> CurrentActIndexField =
+        AccessTools.FieldRefAccess<RunState, int>("_currentActIndex");
+
+    private static readonly AccessTools.FieldRef<RunState, List<MapCoord>> VisitedMapCoordsField =
+        AccessTools.FieldRefAccess<RunState, List<MapCoord>>("_visitedMapCoords");
+
+    // The parchment background picks its textures from RunState.Act whenever its visibility changes; calling that
+    // handler while the state is swapped repaints it for the browsed act. Node outlines are tinted with the act's
+    // MapBgColor to hide them, so background and nodes must come from the same act or the outlines show through.
+    private static readonly AccessTools.FieldRef<NMapScreen, NMapBg> MapBgField =
+        AccessTools.FieldRefAccess<NMapScreen, NMapBg>("_mapBgContainer");
+
+    private static readonly System.Reflection.MethodInfo MapBgRefresh =
+        AccessTools.Method(typeof(NMapBg), "OnVisibilityChanged");
+
     private static NMapScreen? _screen;
     private static Button? _left;
     private static Button? _right;
@@ -72,27 +90,38 @@ public static class ActBrowser
             Refresh(screen);
             return;
         }
-        HBoxContainer nav = new HBoxContainer { Name = NavName, MouseFilter = Control.MouseFilterEnum.Pass };
-        nav.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-        nav.OffsetLeft = -260f;
-        nav.OffsetRight = 260f;
-        nav.OffsetTop = 40f;
-        nav.GrowHorizontal = Control.GrowDirection.Both;
-        nav.Alignment = BoxContainer.AlignmentMode.Center;
-        nav.AddThemeConstantOverride("separation", 24);
+        // Full-rect, non-interactive holder so the arrows can sit at the screen edges. The top of the screen is off
+        // limits: GlobalUi draws the TopBar (and relic row) above the map screen, so anything placed there is hidden.
+        Control nav = new Control { Name = NavName, MouseFilter = Control.MouseFilterEnum.Ignore };
+        nav.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 
-        _left = new Button { Text = "<  Previous act", FocusMode = Control.FocusModeEnum.None };
-        _title = new Label { HorizontalAlignment = HorizontalAlignment.Center, CustomMinimumSize = new Vector2(180f, 0f) };
-        _right = new Button { Text = "Next act  >", FocusMode = Control.FocusModeEnum.None };
+        // Everything sits on the left edge, vertically centred: nothing of the map screen lives there.
+        _title = new Label { HorizontalAlignment = HorizontalAlignment.Center };
+        PlaceLeft(_title, top: -80f, bottom: -48f);
+        _left = new Button { Text = ModText.PreviousActButton, FocusMode = Control.FocusModeEnum.None };
+        PlaceLeft(_left, top: -40f, bottom: 8f);
+        _right = new Button { Text = ModText.NextActButton, FocusMode = Control.FocusModeEnum.None };
+        PlaceLeft(_right, top: 16f, bottom: 64f);
+
         _left.Pressed += () => Step(screen, -1);
         _right.Pressed += () => Step(screen, 1);
         nav.AddChild(_left);
-        nav.AddChild(_title);
         nav.AddChild(_right);
+        nav.AddChild(_title);
         screen.AddChild(nav);
 
         screen.Closed += () => ShowCurrentAct(screen);
         Refresh(screen);
+    }
+
+    private static void PlaceLeft(Control control, float top, float bottom)
+    {
+        control.SetAnchorsPreset(Control.LayoutPreset.CenterLeft);
+        control.OffsetLeft = 40f;
+        control.OffsetRight = 240f;
+        control.OffsetTop = top;
+        control.OffsetBottom = bottom;
+        control.GrowVertical = Control.GrowDirection.Both;
     }
 
     private static void Refresh(NMapScreen screen)
@@ -111,12 +140,16 @@ public static class ActBrowser
         List<int> acts = FloorHistory.ActsWithCheckpoints().Where(a => a < current).ToList();
         _left.Disabled = !acts.Any(a => a < viewed);
         _right.Disabled = viewed >= current;
-        _title.Text = viewed == current ? $"Act {current + 1}" : $"Act {viewed + 1} (past)";
-        Node? nav = screen.GetNodeOrNull(NavName);
-        if (nav is Control control)
+        // Re-applied on every refresh so a language change while the run is loaded reaches the buttons too.
+        _left.Text = ModText.PreviousActButton;
+        _right.Text = ModText.NextActButton;
+        _title.Text = ModText.ActHeader(viewed + 1, isPast: viewed != current);
+        bool show = acts.Count > 0 || ViewedActIndex != null;
+        if (screen.GetNodeOrNull(NavName) is Control control)
         {
-            control.Visible = acts.Count > 0 || ViewedActIndex != null;
+            control.Visible = show;
         }
+        Log.Info($"[{UnDoFloorMod.Id}] Act nav: current={current + 1} viewed={viewed + 1} pastActs=[{string.Join(",", acts.Select(a => a + 1))}] visible={show}.");
     }
 
     private static void Step(NMapScreen screen, int direction)
@@ -162,16 +195,10 @@ public static class ActBrowser
         }
         Log.Info($"[{UnDoFloorMod.Id}] Showing act {actIndex + 1} map from {latest}.");
         ViewedActIndex = actIndex;
-        _swapping = true;
-        try
-        {
-            screen.SetMap(new SavedActMap(savedMap), runState.Rng.Seed, clearDrawings: false);
-        }
-        finally
-        {
-            _swapping = false;
-        }
-        // SetMap marked the *current* act's visited coords; replace with the browsed act's.
+        SavedActMap pastMap = new SavedActMap(savedMap);
+        SetMapAs(screen, runState, actIndex, pastMap, save.VisitedMapCoords);
+        // Only the visited nodes of that act are meaningful; the "next floor" candidates SetMap computed must not
+        // look travelable.
         HashSet<MapCoord> visited = save.VisitedMapCoords.ToHashSet();
         foreach (NMapPoint point in MapPointsField(screen).Values)
         {
@@ -181,6 +208,38 @@ public static class ActBrowser
         screen.Drawings.Visible = false;
         MapRewindUi.HookVisitedNodes(screen);
         Refresh(screen);
+    }
+
+    /// <summary>
+    /// Runs NMapScreen.SetMap while the RunState temporarily claims to be in <paramref name="actIndex"/> with
+    /// <paramref name="map"/> and <paramref name="visited"/>, so every node is built as that act's node. SetMap is
+    /// synchronous, so the real values are back before anything else can observe the state.
+    /// </summary>
+    private static void SetMapAs(NMapScreen screen, RunState runState, int actIndex, ActMap map, IReadOnlyList<MapCoord> visited)
+    {
+        ref int currentActIndex = ref CurrentActIndexField(runState);
+        List<MapCoord> visitedList = VisitedMapCoordsField(runState);
+        int savedActIndex = currentActIndex;
+        ActMap savedMap = runState.Map;
+        List<MapCoord> savedVisited = new List<MapCoord>(visitedList);
+        _swapping = true;
+        try
+        {
+            currentActIndex = actIndex;
+            runState.Map = map;
+            visitedList.Clear();
+            visitedList.AddRange(visited);
+            screen.SetMap(map, runState.Rng.Seed, clearDrawings: false);
+            MapBgRefresh.Invoke(MapBgField(screen), null);
+        }
+        finally
+        {
+            currentActIndex = savedActIndex;
+            runState.Map = savedMap;
+            visitedList.Clear();
+            visitedList.AddRange(savedVisited);
+            _swapping = false;
+        }
     }
 
     private static void ShowCurrentAct(NMapScreen screen)
@@ -197,6 +256,7 @@ public static class ActBrowser
         }
         Log.Info($"[{UnDoFloorMod.Id}] Showing current act {runState.CurrentActIndex + 1} map again.");
         screen.SetMap(runState.Map, runState.Rng.Seed, clearDrawings: false);
+        MapBgRefresh.Invoke(MapBgField(screen), null);
         if (!screen.IsVisible())
         {
             // SetMap only recalculates states while visible; do it now so the next Open finds the right states.

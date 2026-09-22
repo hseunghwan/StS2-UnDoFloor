@@ -16,6 +16,7 @@ The current source targets STS2 `0.111.0`. The mod compiles against the game's o
 - **Timelines are kept.** Rewinding never deletes later restore points. After going back and taking a different path, the old path's nodes keep their outline and stay clickable, so you can jump forward into the abandoned timeline again. A node that is saved again simply replaces its old restore point.
 - **Survives quitting.** Restore points are written to disk per run and reloaded when you continue the run. Starting a new run discards the previous run's files.
 - Nodes without a restore point behave exactly as before. On a node that is both a travel choice and a restore point, the dialog adds a *Travel here* button so normal travel is one extra click away.
+- **Follows the game's language.** Every string the mod shows is translated into the 16 languages the game ships with and switches with the game's language setting. The act number, the room type and *Cancel* are read from the game's own text, so they read exactly as they do elsewhere in the UI; a language the mod has no entry for falls back to English.
 
 ### How it works
 
@@ -61,6 +62,7 @@ src/
 - `src/FloorRewinder.cs`: tears down the run and loads a checkpoint's save.
 - `src/MapRewindUi.cs`: outlines checkpoint nodes on the map, handles clicks, shows the dialog, intercepts the game's travel-on-click for those nodes.
 - `src/ActBrowser.cs`: previous/next act buttons and the swapped-in map of a past act.
+- `src/ModText.cs`: the mod's own text per language, plus the words it reads from the game's loc tables.
 
 ### Known limitations
 
@@ -82,12 +84,13 @@ Written with Claude Code, reviewed and tested by the author. The rewind pipeline
 
 - **현재 런에서 지나온 어느 층으로든 되돌아가기.** 지도를 열고 하늘색 테두리가 있는 노드를 클릭하면 그 층의 복원 지점을 고르는 다이얼로그가 뜹니다.
 - **층마다 복원 지점 두 개:**
-  - *Redo this floor* — 방에 들어간 순간. 그 방(전투·이벤트·상점·휴식·보물)을 다시 플레이합니다.
-  - *Keep result, re-pick path* — 방이 끝난 순간(전투 승리 / 이벤트 종료), 다음 노드를 고르기 직전. 게임이 "완료" 세이브를 쓰는 전투·이벤트 방에서만 제공됩니다.
-- **이전 막.** 이전 막에 복원 지점이 있으면 지도 상단에 `< Previous act` / `Next act >` 버튼이 나타납니다. 이전 막 지도를 열어 노드를 클릭하면 막을 넘어 되돌아갑니다.
+  - *이 층 다시 하기* — 방에 들어간 순간. 그 방(전투·이벤트·상점·휴식·보물)을 다시 플레이합니다.
+  - *결과 유지, 경로 다시 선택* — 방이 끝난 순간(전투 승리 / 이벤트 종료), 다음 노드를 고르기 직전. 게임이 "완료" 세이브를 쓰는 전투·이벤트 방에서만 제공됩니다.
+- **이전 막.** 이전 막에 복원 지점이 있으면 지도 상단에 `<  이전 막` / `다음 막  >` 버튼이 나타납니다. 이전 막 지도를 열어 노드를 클릭하면 막을 넘어 되돌아갑니다.
 - **시간선 유지.** 되돌아가도 이후 층의 복원 지점은 지워지지 않습니다. 되돌아간 뒤 다른 길로 가도 옛 경로 노드는 테두리와 클릭이 유지되어, 버린 시간선으로 다시 앞으로 갈 수 있습니다. 같은 노드가 다시 저장되면 그 노드의 옛 복원 지점만 새 것으로 바뀝니다.
 - **게임을 꺼도 유지.** 복원 지점은 런별로 디스크에 저장되고 이어하기 시 다시 불러옵니다. 새 런을 시작하면 이전 런의 파일은 정리됩니다.
-- 복원 지점이 없는 노드는 기존과 완전히 같게 동작합니다. 다음 층 후보이면서 복원 지점도 있는 노드에서는 다이얼로그에 *Travel here* 버튼이 추가되어 한 번 더 클릭하면 평소처럼 이동합니다.
+- 복원 지점이 없는 노드는 기존과 완전히 같게 동작합니다. 다음 층 후보이면서 복원 지점도 있는 노드에서는 다이얼로그에 *여기로 이동* 버튼이 추가되어 한 번 더 클릭하면 평소처럼 이동합니다.
+- **게임 언어를 따릅니다.** 모드가 표시하는 모든 문구는 게임이 지원하는 16개 언어로 번역되어 있으며 게임의 언어 설정에 따라 바뀝니다. 막 번호, 방 종류, *취소*는 게임 자체 문구를 읽어 쓰므로 다른 UI와 표기가 같습니다. 모드에 번역이 없는 언어는 영어로 표시됩니다.
 
 ### 동작 원리
 
@@ -133,6 +136,7 @@ src/
 - `src/FloorRewinder.cs`: 런을 정리하고 체크포인트의 세이브를 로드합니다.
 - `src/MapRewindUi.cs`: 지도 노드 테두리 표시, 클릭 처리, 다이얼로그, 해당 노드에서 게임의 클릭 이동 가로채기.
 - `src/ActBrowser.cs`: 이전/다음 막 버튼과 과거 막 지도 표시.
+- `src/ModText.cs`: 모드 UI 문구의 언어별 표와, 게임 로컬라이제이션 테이블에서 읽어 오는 단어들.
 
 ### 알려진 제약
 
