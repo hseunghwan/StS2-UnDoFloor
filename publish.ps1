@@ -36,7 +36,9 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet build failed ($LASTEXITCODE)" }
 
 Write-Host '== Staging workshop\content' -ForegroundColor Cyan
 New-Item -ItemType Directory -Force $content | Out-Null
-Get-ChildItem $content -Exclude '.gitkeep' | Remove-Item -Force
+# Wipe everything (dotfiles included): Steam stores an all-zero hash for empty files, which
+# breaks clients that SHA-1-verify downloads, so nothing but the mod itself may be uploaded.
+Get-ChildItem $content -Force | Remove-Item -Force -Recurse
 # Ask MSBuild where the DLL went: the output folder differs between Godot.NET.Sdk (.godot/mono/temp/bin) and the plain SDK (bin/).
 $dll = (dotnet msbuild (Join-Path $root 'StS2-UnDoFloor.csproj') -nologo -getProperty:TargetPath -p:Configuration=Release).Trim()
 if (-not (Test-Path $dll)) { throw "Built DLL not found at '$dll'" }

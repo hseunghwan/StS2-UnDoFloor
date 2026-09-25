@@ -17,6 +17,5 @@ artifacts/
 *.uid
 *.old
 # Steam Workshop upload workspace: content is rebuilt by publish.ps1; mod_id.txt and workshop.json are versioned
-workshop/content/*
-!workshop/content/.gitkeep
+workshop/content/
 workshop/mod-uploader.log
