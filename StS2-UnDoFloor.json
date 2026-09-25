@@ -3,7 +3,7 @@
   "name": "StS2-UnDoFloor",
   "author": "cycle1223",
   "description": "Go back to an earlier floor of the current run from the map screen. Keeps abandoned timelines; works across acts.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "min_game_version": "0.111.0",
   "has_pck": false,
   "has_dll": true,
