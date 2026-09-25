@@ -8,6 +8,14 @@
 
 The current source targets STS2 `0.111.0`. The mod compiles against the game's own `sts2.dll`, so a game update that changes internal names may require a matching mod update.
 
+### Installation
+
+Install from [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3806367581) or download it from [Nexus Mods](https://www.nexusmods.com/slaythespire2/mods/1525).
+
+For a manual install, copy the `StS2-UnDoFloor` folder (containing `StS2-UnDoFloor.dll` and `StS2-UnDoFloor.json`) into `<Slay the Spire 2>\mods\` and enable it in the game's mod screen.
+
+Restore points are stored under `%APPDATA%\SlayTheSpire2\mod_configs\StS2-UnDoFloor\<run id>\`. Deleting that folder removes them.
+
 ### Features
 
 - **Rewind to any floor you have visited in the current run.** Open the map and click a node that carries a sky-blue outline; a dialog offers the floor's restore points.
@@ -27,12 +35,6 @@ The game already writes a full run save when you enter a room and again when a c
 ### Multiplayer
 
 Singleplayer only. Checkpoints are recorded only from singleplayer saves and the rewind is blocked in multiplayer runs. The manifest declares `affects_gameplay: true`.
-
-### Installation
-
-Copy the `StS2-UnDoFloor` folder (containing `StS2-UnDoFloor.dll` and `StS2-UnDoFloor.json`) into `<Slay the Spire 2>\mods\` and enable it in the game's mod screen.
-
-Restore points are stored under `%APPDATA%\SlayTheSpire2\mod_configs\StS2-UnDoFloor\<run id>\`. Deleting that folder removes them.
 
 ### Building
 
@@ -93,6 +95,12 @@ Written with Claude Code, reviewed and tested by the author. The rewind pipeline
 
 현재 소스는 STS2 `0.111.0`을 기준으로 합니다. 게임의 `sts2.dll`을 직접 참조해 빌드하므로, 내부 이름이 바뀌는 게임 업데이트가 있으면 모드도 함께 업데이트가 필요할 수 있습니다.
 
+### 설치
+
+`StS2-UnDoFloor.dll`과 `StS2-UnDoFloor.json`이 들어 있는 `StS2-UnDoFloor` 폴더를 `<Slay the Spire 2>\mods\`에 넣고 게임의 모드 화면에서 활성화합니다.
+
+복원 지점은 `%APPDATA%\SlayTheSpire2\mod_configs\StS2-UnDoFloor\<런 ID>\`에 저장됩니다. 이 폴더를 지우면 복원 지점이 사라집니다.
+
 ### 기능
 
 - **현재 런에서 지나온 어느 층으로든 되돌아가기.** 지도를 열고 하늘색 테두리가 있는 노드를 클릭하면 그 층의 복원 지점을 고르는 다이얼로그가 뜹니다.
@@ -112,12 +120,6 @@ Written with Claude Code, reviewed and tested by the author. The rewind pipeline
 ### 멀티플레이어
 
 싱글플레이 전용입니다. 체크포인트는 싱글플레이 세이브에서만 기록되고 멀티플레이 런에서는 되돌리기가 차단됩니다. 매니페스트는 `affects_gameplay: true`입니다.
-
-### 설치
-
-`StS2-UnDoFloor.dll`과 `StS2-UnDoFloor.json`이 들어 있는 `StS2-UnDoFloor` 폴더를 `<Slay the Spire 2>\mods\`에 넣고 게임의 모드 화면에서 활성화합니다.
-
-복원 지점은 `%APPDATA%\SlayTheSpire2\mod_configs\StS2-UnDoFloor\<런 ID>\`에 저장됩니다. 이 폴더를 지우면 복원 지점이 사라집니다.
 
 ### 빌드
 
