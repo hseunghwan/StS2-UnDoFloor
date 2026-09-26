@@ -25,6 +25,7 @@ Restore points are stored under `%APPDATA%\SlayTheSpire2\mod_configs\StS2-UnDoFl
 - **Previous acts.** When earlier acts have restore points, `< Previous act` / `Next act >` buttons appear on the left edge of the map screen. Browse an earlier act's map and click one of its nodes to rewind across acts.
 - **Timelines are kept.** Rewinding never deletes later restore points. After going back and taking a different path, the old path's nodes keep their outline and stay clickable, so you can jump forward into the abandoned timeline again. A node that is saved again simply replaces its old restore point.
 - **Survives quitting.** Restore points are written to disk per run and reloaded when you continue the run. Starting a new run discards the previous run's files.
+- **Follows the run to another PC (Steam Cloud).** When Steam is running, the current run's restore points are also written as one bundle file (`undofloor_checkpoints.save`, next to `current_run.save` in the profile's save folder) through the game's own cloud save store, and pulled down by the game's startup cloud sync. Continuing the run on another PC merges the bundle into the local restore points: floors only the cloud has are added, and for a floor both sides have, the cloud copy wins. It is one fixed file per profile, overwritten on every save and reused by every run, so the number of files in Steam Cloud never grows. The bundle is compressed (Brotli) and capped at 4 MiB; past the cap the local restore points keep working and only the cloud copy stops updating (a warning is logged). Any cloud problem is logged and never affects local restore points.
 - Nodes without a restore point behave exactly as before. On a node that is both a travel choice and a restore point, the dialog adds a *Travel here* button so normal travel is one extra click away.
 - **Follows the game's language.** Every string the mod shows is translated into the 16 languages the game ships with and switches with the game's language setting. The act number, the room type and *Cancel* are read from the game's own text, so they read exactly as they do elsewhere in the UI; a language the mod has no entry for falls back to English.
 
@@ -62,7 +63,9 @@ src/
 - `src/UnDoFloorMod.cs`: mod entry point; applies the Harmony patches.
 - `src/FloorCheckpoint.cs`: one restore point (act, node, kind, save JSON).
 - `src/FloorHistory.cs`: checkpoint list; records every singleplayer run save via a Harmony prefix on `RunSaveManager.SaveRun`.
-- `src/CheckpointStore.cs`: per-run on-disk copy of the checkpoints.
+- `src/CheckpointStore.cs`: per-run on-disk copy of the checkpoints (the source of truth).
+- `src/CheckpointBundle.cs`: the single-file cloud form of a run's checkpoints (JSON envelope with schema version and run start time; Brotli + base64 payload).
+- `src/CloudCheckpointSync.cs`: writes the bundle through the game's `CloudSaveStore`, merges it back on load, and extends the game's startup cloud sync (`SaveManager.SyncCloudToLocal` / `OverwriteCloudWithLocal`) to the bundle.
 - `src/FloorRewinder.cs`: tears down the run and loads a checkpoint's save.
 - `src/MapRewindUi.cs`: outlines checkpoint nodes on the map, handles clicks, shows the dialog, intercepts the game's travel-on-click for those nodes.
 - `src/ActBrowser.cs`: previous/next act buttons and the swapped-in map of a past act.
@@ -110,6 +113,7 @@ Written with Claude Code, reviewed and tested by the author. The rewind pipeline
 - **이전 막.** 이전 막에 복원 지점이 있으면 지도 왼쪽 가장자리에 `<  이전 막` / `다음 막  >` 버튼이 나타납니다. 이전 막 지도를 열어 노드를 클릭하면 막을 넘어 되돌아갑니다.
 - **시간선 유지.** 되돌아가도 이후 층의 복원 지점은 지워지지 않습니다. 되돌아간 뒤 다른 길로 가도 옛 경로 노드는 테두리와 클릭이 유지되어, 버린 시간선으로 다시 앞으로 갈 수 있습니다. 같은 노드가 다시 저장되면 그 노드의 옛 복원 지점만 새 것으로 바뀝니다.
 - **게임을 꺼도 유지.** 복원 지점은 런별로 디스크에 저장되고 이어하기 시 다시 불러옵니다. 새 런을 시작하면 이전 런의 파일은 정리됩니다.
+- **다른 PC에서도 이어서 되돌리기 (Steam Cloud).** Steam이 실행 중이면 현재 런의 복원 지점을 하나의 번들 파일(`undofloor_checkpoints.save`, 프로필 세이브 폴더의 `current_run.save` 옆)로 게임 자체의 클라우드 세이브 스토어를 통해 기록하고, 게임 시작 시 클라우드 동기화에서 함께 내려받습니다. 다른 PC에서 런을 이어하면 번들이 로컬 복원 지점과 병합됩니다: 클라우드에만 있는 층은 추가되고, 양쪽에 모두 있는 층은 클라우드 쪽이 우선합니다. 프로필당 고정된 파일 하나를 매 저장마다 덮어쓰고 새 런에서도 재사용하므로 Steam Cloud의 파일 수는 늘어나지 않습니다. 번들은 Brotli로 압축되며 상한은 4 MiB입니다. 상한을 넘으면 로컬 복원 지점은 계속 저장되고 클라우드 사본만 갱신을 멈추며 경고 로그를 남깁니다. 클라우드 문제는 로그만 남기고 로컬 복원 지점에는 영향을 주지 않습니다.
 - 복원 지점이 없는 노드는 기존과 완전히 같게 동작합니다. 다음 층 후보이면서 복원 지점도 있는 노드에서는 다이얼로그에 *여기로 이동* 버튼이 추가되어 한 번 더 클릭하면 평소처럼 이동합니다.
 - **게임 언어를 따릅니다.** 모드가 표시하는 모든 문구는 게임이 지원하는 16개 언어로 번역되어 있으며 게임의 언어 설정에 따라 바뀝니다. 막 번호, 방 종류, *취소*는 게임 자체 문구를 읽어 쓰므로 다른 UI와 표기가 같습니다. 모드에 번역이 없는 언어는 영어로 표시됩니다.
 
@@ -147,7 +151,9 @@ src/
 - `src/UnDoFloorMod.cs`: 모드 진입점. Harmony 패치를 적용합니다.
 - `src/FloorCheckpoint.cs`: 복원 지점 하나(막, 노드, 종류, 세이브 JSON).
 - `src/FloorHistory.cs`: 체크포인트 목록. `RunSaveManager.SaveRun`에 Harmony prefix를 걸어 모든 싱글플레이 런 세이브를 기록합니다.
-- `src/CheckpointStore.cs`: 런별 디스크 저장.
+- `src/CheckpointStore.cs`: 런별 디스크 저장(로컬 복원 지점의 기준).
+- `src/CheckpointBundle.cs`: 런의 체크포인트를 클라우드용 파일 하나로 묶는 형식(스키마 버전·런 시작 시각을 담은 JSON 봉투, Brotli + base64 payload).
+- `src/CloudCheckpointSync.cs`: 게임의 `CloudSaveStore`로 번들을 기록하고, 로드 시 병합하며, 게임 시작 시 클라우드 동기화(`SaveManager.SyncCloudToLocal` / `OverwriteCloudWithLocal`)를 번들까지 확장합니다.
 - `src/FloorRewinder.cs`: 런을 정리하고 체크포인트의 세이브를 로드합니다.
 - `src/MapRewindUi.cs`: 지도 노드 테두리 표시, 클릭 처리, 다이얼로그, 해당 노드에서 게임의 클릭 이동 가로채기.
 - `src/ActBrowser.cs`: 이전/다음 막 버튼과 과거 막 지도 표시.

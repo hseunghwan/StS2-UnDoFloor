@@ -10,8 +10,9 @@ using MegaCrit.Sts2.Core.Saves.Managers;
 namespace StS2UnDoFloor;
 
 /// <summary>
-/// Every run save the game has written for the current run, in memory and mirrored to disk by
-/// <see cref="CheckpointStore"/>. Nothing is dropped on rewind: an abandoned timeline's checkpoints stay so the
+/// Every run save the game has written for the current run, in memory, mirrored to disk by
+/// <see cref="CheckpointStore"/> (the source of truth) and, when Steam is up, to Steam Cloud as one bundle by
+/// <see cref="CloudCheckpointSync"/>. Nothing is dropped on rewind: an abandoned timeline's checkpoints stay so the
 /// player can jump forward into it again; a slot (act, node, kind) is simply overwritten when that node is saved again.
 /// The game saves on room entry (RunManager.EnterMapPointInternal) and again when a
 /// combat is won or an event finishes (the "pre-finished" save), so those two moments become the Entered / Completed
@@ -67,8 +68,31 @@ public static class FloorHistory
         _checkpoints.Clear();
         _checkpoints.AddRange(CheckpointStore.Load(runStartTime));
         CheckpointStore.PruneOtherRuns(runStartTime);
+        MergeCloudBundle(runStartTime);
         _loadedRunStartTime = runStartTime;
         Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Folds the checkpoints the startup cloud sync brought down into the local list. Slots only the cloud has are
+    /// added; on a slot both sides have, the cloud copy wins (it is what the other PC saved last). Everything merged
+    /// is written to <see cref="CheckpointStore"/> so from here on the run behaves exactly as if it had been played here.
+    /// </summary>
+    private static void MergeCloudBundle(long runStartTime)
+    {
+        List<FloorCheckpoint> fromCloud = CloudCheckpointSync.LoadForRun(runStartTime);
+        if (fromCloud.Count == 0)
+        {
+            return;
+        }
+        int replaced = 0;
+        foreach (FloorCheckpoint checkpoint in fromCloud)
+        {
+            replaced += _checkpoints.RemoveAll(c => c.SameSlot(checkpoint));
+            _checkpoints.Add(checkpoint);
+            CheckpointStore.Write(checkpoint);
+        }
+        Log.Info($"[{UnDoFloorMod.Id}] Merged {fromCloud.Count} cloud checkpoints ({replaced} replaced local slots); {_checkpoints.Count} total.");
     }
 
     internal static void Record(SerializableRun save)
@@ -84,6 +108,9 @@ public static class FloorHistory
         _checkpoints.Add(checkpoint);
         CheckpointStore.Write(checkpoint);
         Log.Info($"[{UnDoFloorMod.Id}] Checkpoint recorded: {checkpoint} (total {_checkpoints.Count}).");
+        // The whole run goes up every time (one fixed cloud file per profile); a first-time upload after updating the
+        // mod carries the checkpoints an older version had already written to disk.
+        CloudCheckpointSync.ScheduleUpload(save.StartTime, _checkpoints);
         Changed?.Invoke();
     }
 
