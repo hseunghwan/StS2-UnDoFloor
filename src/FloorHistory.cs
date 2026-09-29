@@ -80,8 +80,8 @@ public static class FloorHistory
     /// </summary>
     private static void MergeCloudBundle(long runStartTime)
     {
-        List<FloorCheckpoint> fromCloud = CloudCheckpointSync.LoadForRun(runStartTime);
-        if (fromCloud.Count == 0)
+        List<FloorCheckpoint> fromCloud = CloudCheckpointSync.LoadForRun(runStartTime, _checkpoints.Count > 0, out string? fingerprint);
+        if (fromCloud.Count == 0 || fingerprint == null)
         {
             return;
         }
@@ -92,6 +92,7 @@ public static class FloorHistory
             _checkpoints.Add(checkpoint);
             CheckpointStore.Write(checkpoint);
         }
+        CloudCheckpointSync.MarkMerged(runStartTime, fingerprint);
         Log.Info($"[{UnDoFloorMod.Id}] Merged {fromCloud.Count} cloud checkpoints ({replaced} replaced local slots); {_checkpoints.Count} total.");
     }
 

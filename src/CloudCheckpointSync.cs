@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using HarmonyLib;
@@ -47,11 +48,14 @@ internal static class CloudCheckpointSync
 
     /// <summary>
     /// The checkpoints of <paramref name="runStartTime"/> held by the current profile's bundle as last synced from the
-    /// cloud, or an empty list when there is no bundle, it belongs to another run, or it cannot be read.
+    /// cloud, or an empty list when there is no bundle, it belongs to another run, it has been merged before, or it
+    /// cannot be read. When checkpoints come back, <paramref name="fingerprint"/> identifies the bundle; the caller
+    /// passes it to <see cref="MarkMerged"/> once the merge has been written, so the bundle is never applied twice.
     /// </summary>
-    public static List<FloorCheckpoint> LoadForRun(long runStartTime)
+    public static List<FloorCheckpoint> LoadForRun(long runStartTime, bool hasLocalCheckpoints, out string? fingerprint)
     {
         List<FloorCheckpoint> result = new List<FloorCheckpoint>();
+        fingerprint = null;
         try
         {
             SaveManager saveManager = SaveManager.Instance;
@@ -71,12 +75,41 @@ internal static class CloudCheckpointSync
                 Log.Warn($"[{UnDoFloorMod.Id}] Cloud checkpoint bundle {path} is empty; ignoring it.");
                 return result;
             }
-            CheckpointBundle.Decoded bundle = CheckpointBundle.Decode(envelope);
-            if (bundle.RunStartTime != runStartTime)
+            if (envelope.Length > MaxBundleBytes)
             {
-                Log.Info($"[{UnDoFloorMod.Id}] Cloud checkpoint bundle is for run {bundle.RunStartTime}, current run is {runStartTime}; ignoring it.");
+                // We never write one this big, so it is not a bundle of ours; refuse before inflating anything.
+                Log.Warn($"[{UnDoFloorMod.Id}] Cloud checkpoint bundle {path} is {envelope.Length:N0} chars, over the {MaxBundleBytes:N0} limit; ignoring it.");
                 return result;
             }
+            long bundleRun = CheckpointBundle.PeekRunStartTime(envelope);
+            if (bundleRun != runStartTime)
+            {
+                Log.Info($"[{UnDoFloorMod.Id}] Cloud checkpoint bundle is for run {bundleRun}, current run is {runStartTime}; ignoring it.");
+                return result;
+            }
+            // The local bundle file is whatever was written last: by this machine (its own upload, or one left in
+            // place when an upload was skipped or crashed) or by the startup sync (another PC's upload). A bundle is
+            // merged at most once: everything this machine wrote or already merged is on the consumed list, and only
+            // an unseen bundle can be newer than mod_configs.
+            string candidate = Fingerprint(envelope);
+            if (!CheckpointStore.HasConsumedBundleList(runStartTime) && hasLocalCheckpoints)
+            {
+                // First load with this version on a run that already has local checkpoints: the bundle on disk is
+                // almost certainly this machine's own (an older mod version had no list), and merging it could roll
+                // a slot back. Adopt it as seen instead; another PC's next upload differs and will merge normally.
+                CheckpointStore.MarkBundleConsumed(runStartTime, candidate, createDir: true);
+                Log.Info($"[{UnDoFloorMod.Id}] No consumed-bundle list yet for run {runStartTime}; adopting the current bundle as this machine's own without merging.");
+                return result;
+            }
+            if (CheckpointStore.IsBundleConsumed(runStartTime, candidate))
+            {
+                Log.Info($"[{UnDoFloorMod.Id}] Cloud checkpoint bundle was already merged or written by this machine; nothing new to merge.");
+                return result;
+            }
+            // From here the run is tracked: an (empty) list now exists, so a crash during a fresh machine's first
+            // merge is replayed on the next load instead of being mistaken for the adopt-without-merge case above.
+            CheckpointStore.EnsureConsumedBundleList(runStartTime);
+            CheckpointBundle.Decoded bundle = CheckpointBundle.Decode(envelope);
             foreach (string json in bundle.CheckpointJsons)
             {
                 try
@@ -93,12 +126,26 @@ internal static class CloudCheckpointSync
                 }
             }
             Log.Info($"[{UnDoFloorMod.Id}] Read {result.Count} checkpoints for run {runStartTime} from cloud bundle {path}.");
+            fingerprint = candidate;
         }
         catch (Exception e)
         {
             Log.Warn($"[{UnDoFloorMod.Id}] Could not read the cloud checkpoint bundle; local checkpoints are unaffected: {e.Message}");
+            result.Clear();
         }
         return result;
+    }
+
+    /// <summary>
+    /// Records that the bundle <see cref="LoadForRun"/> returned has been merged and written to disk. Marking after
+    /// the merge means a crash in between replays the same merge on the next load (harmless: the merge runs
+    /// synchronously inside the first Record, so no newer local save can exist by then), while marking before it
+    /// would leave the imported checkpoints missing for good. The guarantee is therefore "a recorded bundle is never
+    /// reapplied over later local saves", not that a merge can never execute twice.
+    /// </summary>
+    public static void MarkMerged(long runStartTime, string fingerprint)
+    {
+        CheckpointStore.MarkBundleConsumed(runStartTime, fingerprint, createDir: true);
     }
 
     /// <summary>
@@ -148,7 +195,11 @@ internal static class CloudCheckpointSync
         try
         {
             // Compression is the expensive part; it only touches immutable strings, so it can leave the main thread.
-            string envelope = await Task.Run(() => CheckpointBundle.Encode(job.RunStartTime, job.CheckpointJsons));
+            (string envelope, string fingerprint) = await Task.Run(() =>
+            {
+                string encoded = CheckpointBundle.Encode(job.RunStartTime, job.CheckpointJsons);
+                return (encoded, Fingerprint(encoded));
+            });
             int bytes = Encoding.UTF8.GetByteCount(envelope);
             if (bytes > MaxBundleBytes)
             {
@@ -161,6 +212,9 @@ internal static class CloudCheckpointSync
                 return;
             }
             string path = BundlePath(job.ProfileId);
+            // Marked before the write, so no window exists in which the file is on disk but not yet on the list.
+            // The run folder is never (re)created here: it may have been pruned by a newer run while this was queued.
+            CheckpointStore.MarkBundleConsumed(job.RunStartTime, fingerprint, createDir: false);
             // CloudSaveStore writes the local file first and logs (rather than throws) when the Steam write fails.
             await store.WriteFileAsync(path, envelope);
             Log.Info($"[{UnDoFloorMod.Id}] Cloud checkpoint bundle written: {job.CheckpointJsons.Count} checkpoints, {bytes:N0} bytes, run {job.RunStartTime}, {path}.");
@@ -177,32 +231,46 @@ internal static class CloudCheckpointSync
     /// </summary>
     internal static async Task AfterVanillaSync(SaveManager saveManager, Task vanilla, bool overwriteCloudWithLocal)
     {
+        // The game's own outcome (including a fault) is preserved as-is; only our extension is fenced off below.
         await vanilla;
-        if (GetCloudStore(saveManager) is not CloudSaveStore store)
-        {
-            return;
-        }
         string mode = overwriteCloudWithLocal ? "local -> cloud" : "cloud -> local";
-        for (int profileId = 1; profileId <= 3; profileId++)
+        try
         {
-            string path = BundlePath(profileId);
-            try
+            if (GetCloudStore(saveManager) is not CloudSaveStore store)
             {
-                if (overwriteCloudWithLocal)
+                return;
+            }
+            for (int profileId = 1; profileId <= 3; profileId++)
+            {
+                string path = BundlePath(profileId);
+                try
                 {
-                    await store.OverwriteCloudWithLocal(path);
+                    if (overwriteCloudWithLocal)
+                    {
+                        await store.OverwriteCloudWithLocal(path);
+                    }
+                    else
+                    {
+                        await store.SyncCloudToLocal(path);
+                    }
                 }
-                else
+                catch (Exception e)
                 {
-                    await store.SyncCloudToLocal(path);
+                    Log.Warn($"[{UnDoFloorMod.Id}] Cloud sync ({mode}) of {path} failed: {e.Message}");
                 }
             }
-            catch (Exception e)
-            {
-                Log.Warn($"[{UnDoFloorMod.Id}] Cloud sync ({mode}) of {path} failed: {e.Message}");
-            }
+            Log.Info($"[{UnDoFloorMod.Id}] Checkpoint bundle cloud sync ({mode}) finished for profiles 1-3.");
         }
-        Log.Info($"[{UnDoFloorMod.Id}] Checkpoint bundle cloud sync ({mode}) finished for profiles 1-3.");
+        catch (Exception e)
+        {
+            Log.Warn($"[{UnDoFloorMod.Id}] Checkpoint bundle cloud sync ({mode}) skipped: {e.Message}");
+        }
+    }
+
+    /// <summary>SHA-256 of the envelope's UTF-8 bytes, as hex.</summary>
+    private static string Fingerprint(string envelope)
+    {
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(envelope)));
     }
 }
 

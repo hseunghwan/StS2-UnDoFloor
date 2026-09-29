@@ -56,6 +56,85 @@ internal static class CheckpointStore
     }
 
 
+    private const string ConsumedBundlesFile = "cloud_bundles_seen.txt";
+
+    /// <summary>True when the run folder has a consumed-bundle list at all (absent before this version first ran on the run).</summary>
+    public static bool HasConsumedBundleList(long runStartTime)
+    {
+        return File.Exists(Path.Combine(RunDir(runStartTime), ConsumedBundlesFile));
+    }
+
+    /// <summary>Creates an empty consumed-bundle list if there is none, so the run is known to be tracked from here on.</summary>
+    public static void EnsureConsumedBundleList(long runStartTime)
+    {
+        try
+        {
+            string dir = RunDir(runStartTime);
+            Directory.CreateDirectory(dir);
+            string path = Path.Combine(dir, ConsumedBundlesFile);
+            if (!File.Exists(path))
+            {
+                File.WriteAllText(path, "");
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Warn($"[{UnDoFloorMod.Id}] Could not create the consumed-bundle list: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// True when a cloud bundle with this fingerprint has already been merged into, or written from, this run's
+    /// checkpoints (see CloudCheckpointSync): such a bundle carries nothing newer than the folder itself. The list is
+    /// append-only for the run's lifetime (one 64-char line per upload, pruned with the run) so a bundle can never
+    /// come back as "unseen"; when the list cannot be read the bundle is reported consumed, since merging on a guess
+    /// could overwrite local checkpoints while skipping only delays a merge. Not a *.json file, so <see cref="Load"/>
+    /// never sees it.
+    /// </summary>
+    public static bool IsBundleConsumed(long runStartTime, string fingerprint)
+    {
+        try
+        {
+            string path = Path.Combine(RunDir(runStartTime), ConsumedBundlesFile);
+            return File.Exists(path) && Array.IndexOf(File.ReadAllLines(path), fingerprint) >= 0;
+        }
+        catch (Exception e)
+        {
+            Log.Warn($"[{UnDoFloorMod.Id}] Could not read the consumed-bundle list; treating the bundle as already merged: {e.Message}");
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Appends a bundle fingerprint to the consumed list. With <paramref name="createDir"/> false, nothing is written
+    /// when the run folder is gone (an upload finishing after <see cref="PruneOtherRuns"/> must not resurrect the folder).
+    /// </summary>
+    public static void MarkBundleConsumed(long runStartTime, string fingerprint, bool createDir)
+    {
+        try
+        {
+            string dir = RunDir(runStartTime);
+            if (!Directory.Exists(dir))
+            {
+                if (!createDir)
+                {
+                    return;
+                }
+                Directory.CreateDirectory(dir);
+            }
+            string path = Path.Combine(dir, ConsumedBundlesFile);
+            if (File.Exists(path) && Array.IndexOf(File.ReadAllLines(path), fingerprint) >= 0)
+            {
+                return;
+            }
+            File.AppendAllText(path, fingerprint + "\n");
+        }
+        catch (Exception e)
+        {
+            Log.Warn($"[{UnDoFloorMod.Id}] Could not update the consumed-bundle list: {e.Message}");
+        }
+    }
+
     /// <summary>Removes every run folder except the one for <paramref name="keepRunStartTime"/>.</summary>
     public static void PruneOtherRuns(long keepRunStartTime)
     {

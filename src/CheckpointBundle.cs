@@ -65,11 +65,37 @@ internal static class CheckpointBundle
         return Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    /// <exception cref="InvalidDataException">The envelope is malformed or from an unsupported schema.</exception>
-    public static Decoded Decode(string envelope)
+    /// <summary>Upper bound on the inflated payload; a bundle that is really ours never gets near it (~1 KB per checkpoint compressed, ~60x when inflated).</summary>
+    public const long DefaultMaxDecompressedBytes = 512L * 1024 * 1024;
+
+    /// <summary>
+    /// The run the envelope belongs to, read from the header alone (schema and encoding are validated, the payload is
+    /// left compressed), so a bundle from another run can be rejected before anything is inflated.
+    /// </summary>
+    /// <exception cref="InvalidDataException">The envelope is malformed or from an unsupported schema/encoding.</exception>
+    public static long PeekRunStartTime(string envelope)
+    {
+        using JsonDocument document = JsonDocument.Parse(envelope);
+        ReadHeader(document.RootElement, out long runStartTime, out _, out _);
+        return runStartTime;
+    }
+
+    /// <exception cref="InvalidDataException">The envelope is malformed, from an unsupported schema, or inflates past <paramref name="maxDecompressedBytes"/>.</exception>
+    public static Decoded Decode(string envelope, long maxDecompressedBytes = DefaultMaxDecompressedBytes)
     {
         using JsonDocument document = JsonDocument.Parse(envelope);
         JsonElement root = document.RootElement;
+        ReadHeader(root, out long runStartTime, out int count, out bool gzip);
+        List<string> jsons = Decompress(root.GetProperty("payload").GetBytesFromBase64(), gzip, maxDecompressedBytes);
+        if (jsons.Count != count)
+        {
+            throw new InvalidDataException($"Checkpoint bundle declares {count} checkpoints but holds {jsons.Count}.");
+        }
+        return new Decoded(runStartTime, jsons);
+    }
+
+    private static void ReadHeader(JsonElement root, out long runStartTime, out int count, out bool gzip)
+    {
         int schema = ReadInt(root, "schema_version");
         if (schema != SchemaVersion)
         {
@@ -80,14 +106,17 @@ internal static class CheckpointBundle
         {
             throw new InvalidDataException($"Unsupported checkpoint bundle encoding '{encoding}'.");
         }
-        long runStartTime = root.GetProperty("run_start_time").GetInt64();
-        int count = ReadInt(root, "checkpoint_count");
-        List<string> jsons = Decompress(root.GetProperty("payload").GetBytesFromBase64(), encoding == GzipEncoding);
-        if (jsons.Count != count)
+        if (!root.TryGetProperty("run_start_time", out JsonElement runElement) || runElement.ValueKind != JsonValueKind.Number)
         {
-            throw new InvalidDataException($"Checkpoint bundle declares {count} checkpoints but holds {jsons.Count}.");
+            throw new InvalidDataException("Checkpoint bundle is missing 'run_start_time'.");
         }
-        return new Decoded(runStartTime, jsons);
+        runStartTime = runElement.GetInt64();
+        count = ReadInt(root, "checkpoint_count");
+        if (count < 0)
+        {
+            throw new InvalidDataException($"Checkpoint bundle declares a negative checkpoint count ({count}).");
+        }
+        gzip = encoding == GzipEncoding;
     }
 
     private static int ReadInt(JsonElement root, string name)
@@ -126,13 +155,27 @@ internal static class CheckpointBundle
         return compressed.AsSpan(0, written).ToArray();
     }
 
-    private static List<string> Decompress(byte[] payload, bool gzip)
+    private static List<string> Decompress(byte[] payload, bool gzip, long maxDecompressedBytes)
     {
         using MemoryStream input = new MemoryStream(payload);
         using Stream inflater = gzip
             ? new GZipStream(input, CompressionMode.Decompress)
             : new BrotliStream(input, CompressionMode.Decompress);
-        using JsonDocument document = JsonDocument.Parse(inflater);
+        // Inflate into memory under a budget first: a tiny corrupt or hostile payload can expand without bound, and
+        // JsonDocument.Parse(Stream) would happily buffer all of it.
+        using MemoryStream plain = new MemoryStream();
+        byte[] chunk = new byte[64 * 1024];
+        int read;
+        while ((read = inflater.Read(chunk, 0, chunk.Length)) > 0)
+        {
+            if (plain.Length + read > maxDecompressedBytes)
+            {
+                throw new InvalidDataException($"Checkpoint bundle inflates past the {maxDecompressedBytes:N0}-byte limit.");
+            }
+            plain.Write(chunk, 0, read);
+        }
+        plain.Position = 0;
+        using JsonDocument document = JsonDocument.Parse(plain);
         if (document.RootElement.ValueKind != JsonValueKind.Array)
         {
             throw new InvalidDataException("Checkpoint bundle payload is not a JSON array.");
