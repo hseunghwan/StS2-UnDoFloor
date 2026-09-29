@@ -39,6 +39,9 @@ New-Item -ItemType Directory -Force $content | Out-Null
 # Wipe everything (dotfiles included): Steam stores an all-zero hash for empty files, which
 # breaks clients that SHA-1-verify downloads, so nothing but the mod itself may be uploaded.
 Get-ChildItem $content -Force | Remove-Item -Force -Recurse
+# Godot regenerates *.import next to every image whenever the project is opened in the editor; the uploader would
+# otherwise register each one as a new Workshop preview image.
+Get-ChildItem $workspace -Recurse -Force -Filter '*.import' | Remove-Item -Force
 # Ask MSBuild where the DLL went: the output folder differs between Godot.NET.Sdk (.godot/mono/temp/bin) and the plain SDK (bin/).
 $dll = (dotnet msbuild (Join-Path $root 'StS2-UnDoFloor.csproj') -nologo -getProperty:TargetPath -p:Configuration=Release).Trim()
 if (-not (Test-Path $dll)) { throw "Built DLL not found at '$dll'" }

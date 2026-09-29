@@ -19,3 +19,6 @@ artifacts/
 # Steam Workshop upload workspace: content is rebuilt by publish.ps1; mod_id.txt and workshop.json are versioned
 workshop/content/
 workshop/mod-uploader.log
+
+# Godot editor import artifacts (the project is opened in Godot only for the .NET SDK; never ship or commit these)
+*.import
