@@ -33,7 +33,8 @@ public static class MapRewindUi
     private static readonly System.Reflection.MethodInfo OnReleaseMethod =
         AccessTools.Method(typeof(NMapPoint), "OnRelease");
 
-    private static AcceptDialog? _dialog;
+    /// <summary>The open rewind dialog: a CanvasLayer holding a click-blocking backdrop and the panel.</summary>
+    private static CanvasLayer? _dialog;
 
     /// <summary>Set while we deliberately forward a click to the game's travel logic from the dialog.</summary>
     private static bool _forwardingTravel;
@@ -202,49 +203,88 @@ public static class MapRewindUi
 
         int floor = point.Point.coord.row + 1;
         int actNumber = checkpoints[0].ActIndex + 1;
-        AcceptDialog dialog = new AcceptDialog
+
+        // Plain controls on their own canvas layer, not an AcceptDialog: a dialog is a Window, and even an embedded
+        // Window takes focus from the main window. The Android launcher treats that focus-out as the app going to the
+        // background and pauses the SceneTree, so the dialog's buttons never fired there (seen 2026-09-30).
+        CanvasLayer layer = new CanvasLayer { Name = "UnDoFloorDialog", Layer = 128 };
+        ColorRect backdrop = new ColorRect
         {
-            Title = ModText.DialogTitle(actNumber, floor, point.Point.PointType),
-            DialogText = onCurrentPath
-                ? ModText.RewindBody(actNumber, floor)
-                : ModText.JumpBody(actNumber, floor),
-            Exclusive = true
+            Color = new Color(0f, 0f, 0f, 0.6f),
+            MouseFilter = Control.MouseFilterEnum.Stop
         };
-        dialog.GetOkButton().Visible = false;
-        dialog.AddCancelButton(ModText.Cancel);
+        backdrop.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        layer.AddChild(backdrop);
+
+        PanelContainer panel = new PanelContainer();
+        panel.SetAnchorsPreset(Control.LayoutPreset.Center);
+        panel.GrowHorizontal = Control.GrowDirection.Both;
+        panel.GrowVertical = Control.GrowDirection.Both;
+        MarginContainer margin = new MarginContainer();
+        foreach (string side in new[] { "margin_left", "margin_top", "margin_right", "margin_bottom" })
+        {
+            margin.AddThemeConstantOverride(side, 32);
+        }
+        VBoxContainer column = new VBoxContainer();
+        column.AddThemeConstantOverride("separation", 20);
+
+        Label title = new Label
+        {
+            Text = ModText.DialogTitle(actNumber, floor, point.Point.PointType),
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        title.AddThemeFontSizeOverride("font_size", 34);
+        Label body = new Label
+        {
+            Text = onCurrentPath ? ModText.RewindBody(actNumber, floor) : ModText.JumpBody(actNumber, floor),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            CustomMinimumSize = new Vector2(760f, 0f)
+        };
+        body.AddThemeFontSizeOverride("font_size", 26);
+
+        HBoxContainer buttons = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+        buttons.AddThemeConstantOverride("separation", 16);
+        buttons.AddChild(MakeButton(ModText.Cancel, CloseDialog));
         if (point.IsEnabled)
         {
             // The click also meant "go here" in the game; keep that reachable.
-            dialog.AddButton(ModText.TravelHere, right: true, action: "Travel");
+            buttons.AddChild(MakeButton(ModText.TravelHere, () =>
+            {
+                CloseDialog();
+                TravelTo(point);
+            }));
         }
         foreach (FloorCheckpoint checkpoint in checkpoints)
         {
-            string label = checkpoint.Kind == CheckpointKind.Entered
-                ? ModText.RedoFloor
-                : ModText.KeepResult;
-            dialog.AddButton(label, right: true, action: checkpoint.Kind.ToString());
-        }
-        dialog.CustomAction += action =>
-        {
-            string name = action.ToString();
-            CloseDialog();
-            if (name == "Travel")
+            FloorCheckpoint chosen = checkpoint;
+            string label = chosen.Kind == CheckpointKind.Entered ? ModText.RedoFloor : ModText.KeepResult;
+            buttons.AddChild(MakeButton(label, () =>
             {
-                TravelTo(point);
-                return;
-            }
-            FloorCheckpoint? chosen = checkpoints.FirstOrDefault(c => c.Kind.ToString() == name);
-            if (chosen != null)
-            {
+                CloseDialog();
                 TaskHelper.RunSafely(FloorRewinder.RewindTo(chosen));
-            }
-        };
-        dialog.Canceled += CloseDialog;
-        dialog.CloseRequested += CloseDialog;
+            }));
+        }
 
-        _dialog = dialog;
-        game.AddChild(dialog);
-        dialog.PopupCentered();
+        column.AddChild(title);
+        column.AddChild(body);
+        column.AddChild(buttons);
+        margin.AddChild(column);
+        panel.AddChild(margin);
+        backdrop.AddChild(panel);
+
+        _dialog = layer;
+        game.AddChild(layer);
+    }
+
+    private static Button MakeButton(string text, System.Action onPressed)
+    {
+        Button button = new Button { Text = text, FocusMode = Control.FocusModeEnum.None };
+        button.AddThemeFontSizeOverride("font_size", 26);
+        button.AddThemeConstantOverride("h_separation", 12);
+        button.CustomMinimumSize = new Vector2(0f, 64f);
+        button.Pressed += onPressed;
+        return button;
     }
 
     private static void CloseDialog()

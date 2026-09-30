@@ -74,7 +74,7 @@ src/
 ### Known limitations
 
 - Only floors saved while the mod was installed have restore points; floors played before installing it are not available.
-- The dialog uses a plain engine dialog rather than the game's UI style.
+- The dialog is drawn with plain engine controls rather than the game's UI style. (It is deliberately not a separate window: on the Android launcher a popup window's focus change pauses the game.)
 
 ### Publishing to Steam Workshop
 
@@ -162,7 +162,7 @@ src/
 ### 알려진 제약
 
 - 모드가 설치된 뒤 저장된 층만 복원 지점이 있습니다. 설치 전에 지나온 층은 되돌아갈 수 없습니다.
-- 다이얼로그는 게임 UI 스타일이 아닌 엔진 기본 다이얼로그를 사용합니다.
+- 다이얼로그는 게임 UI 스타일이 아닌 엔진 기본 컨트롤로 그립니다. (일부러 별도 창을 쓰지 않습니다. Android 런처에서는 팝업 창의 포커스 이동이 게임을 일시정지시킵니다.)
 
 ### Steam 창작마당 게시
 
